@@ -29,6 +29,7 @@ orient = 9  # HOG orientations
 pix_per_cell = 8  # HOG pixels per cell
 cell_per_block = 2  # HOG cells per block
 hog_channel = "ALL"  # Can be 0, 1, 2, or "ALL"
+hog_colorspace="YCrCb"
 
 #### spatial binning
 spatial_size = (64, 64)  # Spatial binning dimensions
@@ -38,8 +39,8 @@ color_space = 'RGB' # Can be RGB, HSV, LUV, HLS, YUV, YCrCb
 hist_bins = 16  # Number of histogram bins
 
 image_size = (64, 64) #size of training images to match feature vectors
-spatial_feat = True  # Spatial features on or off
-hist_feat = True  # Histogram features on or off
+spatial_feat = False  # Spatial features on or off
+hist_feat = False  # Histogram features on or off
 hog_feat = True  # HOG features on or off
 
 car_features = extract_features(cars, color_space=color_space,
@@ -47,13 +48,15 @@ car_features = extract_features(cars, color_space=color_space,
                                 orient=orient, pix_per_cell=pix_per_cell,
                                 cell_per_block=cell_per_block,
                                 hog_channel=hog_channel, window_size=image_size,
-                                spatial_feat=spatial_feat, hist_feat=hist_feat, hog_feat=hog_feat)
+                                spatial_feat=spatial_feat, hist_feat=hist_feat, hog_feat=hog_feat,
+                                hog_colorspace=hog_colorspace)
 notcar_features = extract_features(notcars, color_space=color_space,
                                    spatial_size=spatial_size, hist_bins=hist_bins,
                                    orient=orient, pix_per_cell=pix_per_cell,
                                    cell_per_block=cell_per_block,
                                    hog_channel=hog_channel, window_size=image_size,
-                                   spatial_feat=spatial_feat, hist_feat=hist_feat, hog_feat=hog_feat)
+                                   spatial_feat=spatial_feat, hist_feat=hist_feat, hog_feat=hog_feat,
+                                   hog_colorspace=hog_colorspace)
 
 X = np.vstack((car_features, notcar_features)).astype(np.float64)
 # Fit a per-column scaler
@@ -76,7 +79,7 @@ print('X_test shape: ',X_test.shape)
 print('y_test shape: ',y_test.shape)
 
 # Use a linear SVC
-svc = LinearSVC()
+svc = LinearSVC(C=10000)
 # Check the training time for the SVC
 print('Training...')
 t = time.time()
@@ -89,4 +92,4 @@ print('Save trained model')
 with open('svc.p', mode='wb') as f:
     pickle.dump({'svc': svc, 'scaler': X_scaler, 'orient': orient, 'pix_per_cell': pix_per_cell, 'hog_channel': hog_channel,
                  'cell_per_block': cell_per_block, 'spatial_size': spatial_size, 'hist_bins': hist_bins,
-                 'color_space':color_space, 'training_size':image_size}, f)
+                 'color_space':color_space, 'training_size':image_size, 'hog_colorspace':hog_colorspace}, f)

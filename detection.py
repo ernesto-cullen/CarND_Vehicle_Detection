@@ -14,13 +14,13 @@ def process_image(image):
     imgx = image.shape[1]
     imgy = image.shape[0]
     if len(windows)==0:
-        # search boxes on two sizes, smaller for cars far away (up in the image), bigger ones for nearer cars
-        windows.extend(slide_window((imgx, imgy), [imgx//6, 5*imgx//6], [380, 500], xy_window=(64, 64), xy_overlap=(0.75,0.75)))
+        # search boxes on two sizes, smaller for cars far away (up in the image), bigger ones for nearer cars []
+        windows.extend(slide_window((imgx-1, imgy-1), [imgx//6, 5*imgx//6], [380, 550], xy_window=(64, 64), xy_overlap=(0.75,0.75)))
         if debug:
             window_img = draw_boxes(image, windows, color=(0, 255, 0), thick=4)
             displayImage(window_img)
 
-        windows.extend(slide_window((imgx, imgy), [None, None], [380, 700], xy_window=(112, 100), xy_overlap=(0.75,0.75)))
+        windows.extend(slide_window((imgx-1, imgy-1), [None, None], [380, 660], xy_window=(128, 96), xy_overlap=(0.75,0.75)))
         if debug:
             window_img = draw_boxes(image, windows, color=(0, 0, 255), thick=4)
             displayImage(window_img)
@@ -29,7 +29,7 @@ def process_image(image):
     hot_windows = search_windows(img=image, windows=windows, clf=svc, scaler=scaler, color_space=color_space,
                                  spatial_size=spatial_size, hist_bins=hist_bins, orient=orient,
                                  pix_per_cell=pix_per_cell, cell_per_block=cell_per_block, hog_channel=hog_channel,
-                                 spatial_feat=True, hist_feat=True, hog_feat=True)
+                                 spatial_feat=False, hist_feat=False, hog_feat=True, hog_colorspace=hog_colorspace)
     # intermediate result: bounding boxes on detected cars
     if debug:
         window_img = draw_boxes(image, hot_windows, color=(255, 0, 0), thick=4)
@@ -43,14 +43,17 @@ def process_image(image):
         displayImage(heat, cmap='hot', title='heatmap')
 
     if single_image:
-        heat = apply_threshold(heat, 3)
+        heat = apply_threshold(heat, 2)
     else:
+        if len(hm_history) > 1:
+            prev_hm = hm_history[-1]
+            prev_hm[np.where(heat == 0)] = prev_hm[np.where(heat == 0)]//2
         hm_history.append(heat)
         if len(hm_history) == max_history:
-            # Apply threshold to help remove false positives
-            heat = apply_threshold(sum(hm_history), max_history+4)
+            heat = apply_threshold(sum(hm_history)/len(hm_history), 3)
         else:
-            heat = apply_threshold(heat, 3)
+            heat = np.zeros_like(image[:, :, 0]).astype(np.float)
+
 
     if debug:
         displayImage(heat, cmap='hot', title='hot with threshold')
@@ -85,17 +88,18 @@ hist_bins = dist_pickle["hist_bins"]
 hog_channel = dist_pickle["hog_channel"]
 color_space = dist_pickle["color_space"]
 training_size = dist_pickle["training_size"]
+hog_colorspace = dist_pickle["hog_colorspace"]
 
 print('Using:', orient, 'orientations', pix_per_cell, 'pixels per cell and', cell_per_block, 'cells per block')
 max_history = 10
-hm_history = deque(maxlen=max_history)
 
-single_image = True
+single_image = False
 debug = False
+hm_history = deque(maxlen=max_history)
 
 if single_image:
     print("reading image")
-    image = loadRGBImage(r'D:\archi\ernesto\cursos\self-driving car\proj5\CarND_Vehicle_Detection\test_images\test6.jpg')
+    image = loadRGBImage(r'D:\archi\ernesto\cursos\self-driving car\proj5\CarND_Vehicle_Detection\test_images\vlcsnap-2017-05-24-11h35m29s005.jpg')
     print("processing")
     final_img = process_image(image)
     plt.imshow(final_img)

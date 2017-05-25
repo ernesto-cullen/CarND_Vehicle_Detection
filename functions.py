@@ -1,6 +1,7 @@
 import glob
 import cv2
 import numpy as np
+from numpy import random
 from skimage.feature import hog
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
@@ -34,6 +35,8 @@ def getTrainingImageLists(smallset=True, maxImages=0):
         notcars.append(image)
         i += 1
 
+    random.shuffle(cars)
+    random.shuffle(notcars)
     return cars, notcars
 
 
@@ -80,7 +83,8 @@ def color_hist(img, nbins=32, bins_range=(0, 256)):
 def extract_features(imgs, color_space='RGB', spatial_size=(64, 64),
                      hist_bins=32, orient=9,
                      pix_per_cell=8, cell_per_block=2, hog_channel=0, window_size=(64,64),
-                     spatial_feat=True, hist_feat=True, hog_feat=True):
+                     spatial_feat=True, hist_feat=True, hog_feat=True,
+                     hog_colorspace='YCrCb'):
     features = []
     for file in imgs:
         # load file always in RGB
@@ -89,7 +93,8 @@ def extract_features(imgs, color_space='RGB', spatial_size=(64, 64),
         file_features = img_features(img=feature_image, spatial_size=spatial_size, color_space=color_space,
                                      hist_bins=hist_bins, orient=orient, pix_per_cell=pix_per_cell,
                                      cell_per_block=cell_per_block, hog_channel=hog_channel, window_size=window_size,
-                                     spatial_feat=spatial_feat, hist_feat=hist_feat, hog_feat=hog_feat)
+                                     spatial_feat=spatial_feat, hist_feat=hist_feat, hog_feat=hog_feat,
+                                     hog_colorspace=hog_colorspace)
         features.append(file_features)
     return features
 
@@ -113,8 +118,8 @@ def convertColor(image, color_space):
     return feature_image  # extract features from a single image
 
 
-def img_features(img, spatial_size, color_space, hist_bins, orient, pix_per_cell, cell_per_block, hog_channel, window_size,
-                 spatial_feat, hist_feat, hog_feat):
+def img_features(img, spatial_size, color_space, hist_bins, orient, pix_per_cell, cell_per_block, hog_channel,
+                 window_size, spatial_feat, hist_feat, hog_feat, hog_colorspace):
     # resize the image to the processing size. It must be the same as in training to get same feature vector length
     feature_image = cv2.resize(img, window_size)
     file_features = []
@@ -128,14 +133,15 @@ def img_features(img, spatial_size, color_space, hist_bins, orient, pix_per_cell
         # print("hist features: ",len(hist_features))
         file_features.append(hist_features)
     if hog_feat:
+        hog_image = convertColor(feature_image, hog_colorspace)
         if hog_channel == 'ALL':
             hog_features = []
-            for channel in range(feature_image.shape[2]):
-                hog_features.extend(get_hog_features(feature_image[:, :, channel],
+            for channel in range(hog_image.shape[2]):
+                hog_features.extend(get_hog_features(hog_image[:, :, channel],
                                                      orient, pix_per_cell, cell_per_block,
                                                      vis=False, feature_vec=True))
         else:
-            hog_features = get_hog_features(feature_image[:, :, hog_channel], orient,
+            hog_features = get_hog_features(hog_image[:, :, hog_channel], orient,
                                             pix_per_cell, cell_per_block, vis=False, feature_vec=True)
 
         # print("hog features: ",len(hog_features))
@@ -168,8 +174,8 @@ def slide_window(img_shape=(1280,768), x_start_stop=[None, None], y_start_stop=[
     # Compute the number of windows in x/y
     nx_buffer = np.int(xy_window[0] * (xy_overlap[0]))
     ny_buffer = np.int(xy_window[1] * (xy_overlap[1]))
-    nx_windows = np.int((xspan - nx_buffer) / nx_pix_per_step)
-    ny_windows = np.int((yspan - ny_buffer) / ny_pix_per_step)
+    nx_windows = np.int((xspan - nx_buffer) / nx_pix_per_step)+1
+    ny_windows = np.int((yspan - ny_buffer) / ny_pix_per_step)+1
     # Initialize a list to append window positions to
     window_list = []
     for ys in range(ny_windows):
@@ -201,7 +207,8 @@ def search_windows(img, windows, clf, scaler, color_space='RGB',
                    spatial_size=(64, 64), hist_bins=32,
                    orient=9, pix_per_cell=8, cell_per_block=2,
                    hog_channel=0, window_size=(64,64), spatial_feat=True,
-                   hist_feat=True, hog_feat=True):
+                   hist_feat=True, hog_feat=True,
+                   hog_colorspace='YCrCb'):
     # 1) Create an empty list to receive positive detection windows
     on_windows = []
     img = convertColor(img, color_space)
@@ -215,13 +222,15 @@ def search_windows(img, windows, clf, scaler, color_space='RGB',
                                 orient=orient, pix_per_cell=pix_per_cell,
                                 cell_per_block=cell_per_block,
                                 hog_channel=hog_channel, window_size=window_size,
-                                spatial_feat=spatial_feat, hist_feat=hist_feat, hog_feat=hog_feat)
+                                spatial_feat=spatial_feat, hist_feat=hist_feat, hog_feat=hog_feat,
+                                hog_colorspace=hog_colorspace)
         # 5) Scale extracted features to be fed to classifier
         test_features = scaler.transform(features.reshape(1, -1))
         # 6) Predict
         prediction = clf.predict(test_features)
+        decision = clf.decision_function(test_features)
         # 7) If positive (prediction == 1) then save the window
-        if prediction == 1:
+        if prediction == 1 and decision > 0.4:
             on_windows.append(window)
     # 8) Return windows for positive detections
     return on_windows
